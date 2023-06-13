@@ -37,66 +37,71 @@ app = Flask(__name__)
 #################################################
 @app.route("/")
 def welcome():
-	return (
-		f"Thank you for visiting my API! Please enjoy :)<br/>"
-		f"<br/>"
-		f"<br/>"
-		f"Available Routes:<br/>"
-		f"<br/>"
-		f"Daily precipitation data capture off the coast of Hawai'i: /api/v1.0/precipitation<br/>"
-		f"<br/>"
-		f"Individual station data: /api/v1.0/stations<br/>"
-		f"<br/>"
-		f"Daily temperature observed at station USC00519281: /api/v1.0/tobs<br/>"
-		f"<br/>"
-		f"Min, Max, and Average for individual days: /api/v1.0/start_date/yyyy-mm-dd<br/>"
-		f"<br/>"
-		f"Min, Max, and Average for date ranges: /api/v1.0/start_date/yyyy-mm-dd/end_date/yyyy-mm-dd<br/>"
-	)
+    return (
+        f"Thank you for visiting my API! Please enjoy :)<br/>"
+        f"<br/>"
+        f"<br/>"
+        f"Available Routes:<br/>"
+        f"<br/>"
+        f"Daily precipitation data capture off the coast of Hawai'i: /api/v1.0/precipitation<br/>"
+        f"<br/>"
+        f"Individual station data: /api/v1.0/stations<br/>"
+        f"<br/>"
+        f"Daily temperature observed at station USC00519281: /api/v1.0/tobs<br/>"
+        f"<br/>"
+        f"Min, Max, and Average temperature for individual days: /api/v1.0/start_date/yyyy-mm-dd<br/>"
+        f"<br/>"
+        f"Min, Max, and Average temperature for date ranges: /api/v1.0/start_and_end/yyyy-mm-dd/yyyy-mm-dd<br/>"
+    )
 
 #---------------------------------------
+#Created the route for the precipitation data
 
 @app.route("/api/v1.0/precipitation")
 def precipitation():
 
-	session = Session(engine)
+    session = Session(engine)
 
-	precip_data = session.query(measurement.date, measurement.prcp).\
-    	filter(measurement.date >= '2016-08-23').\
-    	filter(measurement.date <= '2017-08-23').\
-		order_by(measurement.date).all()
+    precip_data = session.query(measurement.date, measurement.prcp).\
+        filter(measurement.date >= '2016-08-23').\
+        filter(measurement.date <= '2017-08-23').\
+        order_by(measurement.date).all()
 
-	session.close()
+    session.close()
 
 
-	all_rain = []
-	for date, prcp in precip_data:
-		prcp_dict = {}
-		prcp_dict["date"] = date
-		prcp_dict["prcp"] = prcp
+    all_rain = []
+    for date, prcp in precip_data:
+        prcp_dict = {}
+        prcp_dict["date"] = date
+        prcp_dict["prcp"] = prcp
 
-		all_rain.append(prcp_dict)
+        all_rain.append(prcp_dict)
 
-	return jsonify(all_rain)
+    return jsonify(all_rain)
 
 #---------------------------------------
+#Created the route for each individual station to see which station is the most active
 
 @app.route("/api/v1.0/stations")
 def stations():
 
-	session = Session(engine)
+    session = Session(engine)
 
-	active_stations = session.query(measurement.station).\
-    	group_by(measurement.station).all()
+    active_stations = session.query(measurement.station).\
+        group_by(measurement.station).all()
 
-	session.close()
+    session.close()
 
-	station_list = list(np.ravel(active_stations))
-	return jsonify(station_list)
+	#Here I was getting an error about an incorrect data type. Stack overflow helped big time with this one
+	#This function converts a list of touples into a regular list
+    station_list = list(np.ravel(active_stations))
+    return jsonify(station_list)
 
 
 
 #---------------------------------------
+#Created the route for the tobs data at station USC00519281 since it's the busiest station 
 
 @app.route("/api/v1.0/tobs")
 def tobs():
@@ -121,60 +126,64 @@ def tobs():
 
 
 #---------------------------------------
+#Created a route where users can manually enter a date to retrieve data from specific days in hawai'i from across all stations
+#Includes the min, max, and average of all stations 
 
 @app.route("/api/v1.0/start_date/<start_date>")
 def Start_date(start_date, end_date='2017-08-23'):
 
-	session = Session(engine)
+    session = Session(engine)
 
-	function_results = session.query(func.min(measurement.tobs),
+    function_results = session.query(func.min(measurement.tobs),
         func.max(measurement.tobs),
         func.avg(measurement.tobs)).\
-		filter(measurement.date >= start_date).\
-		filter(measurement.date <= end_date).all()
+        filter(measurement.date >= start_date).\
+        filter(measurement.date <= end_date).all()
 
-	session.close()
+    session.close()
 
-	rain_stats = []
-	for min_temp, max_temp, avg_temp in function_results:
-		rain_stats_dict = {}
-		rain_stats_dict['min_temp'] = min_temp
-		rain_stats_dict['max_temp']= max_temp
-		rain_stats_dict['avg_temp'] = avg_temp
-		rain_stats.append(rain_stats_dict)
+    rain_stats = []
+    for min_temp, max_temp, avg_temp in function_results:
+        rain_stats_dict = {}
+        rain_stats_dict['min_temp'] = min_temp
+        rain_stats_dict['max_temp']= max_temp
+        rain_stats_dict['avg_temp'] = avg_temp
+        rain_stats.append(rain_stats_dict)
 
-	if rain_stats_dict['min_temp']: 
-		return jsonify(rain_stats)
-	else:
-		return jsonify({"error": f"Date(s) not found, invalid, or not formatted as YYYY-MM-DD."}), 404
+    if rain_stats_dict['min_temp']: 
+        return jsonify(rain_stats)
+    else:
+        return jsonify({"error": f"Date(s) not found, invalid, or not formatted as YYYY-MM-DD."}), 404
 
 #---------------------------------------
+#This code is similar to the one above, however this one returns data from a range of dates rather than just one specific date.
+#Again, includes the min, max, and average of the stations. 
 
-@app.route("/api/v1.0/<start_date>/<end_date>")
-def Start_and_end(start_date, end_date='2017-08-23'):
+@app.route("/api/v1.0/start_and_end/<start_date>/<end_date>")
+def start_and_end(start_date, end_date='2017-08-23'):
 
-	session = Session(engine)
+    session = Session(engine)
 
-	function_results = Session.query(func.min(measurement.tobs),
+    function_results = session.query(func.min(measurement.tobs),
         func.max(measurement.tobs),
         func.avg(measurement.tobs)).\
-		filter(measurement.date >= start_date).\
-		filter(measurement.date <= end_date).all()
+        filter(measurement.date >= start_date).\
+        filter(measurement.date <= end_date).all()
 
-	session.close()
+    session.close()
 
-	rain_stats = []
-	for min, max, avg in function_results:
-		rain_stats_dict = {}
-		rain_stats_dict['min_temp'] = min
-		rain_stats_dict['max_temp']= max
-		rain_stats_dict['avg_temp'] = avg
-		rain_stats.append(rain_stats_dict)
+    range_stats = []
+    for min_temp, max_temp, avg_temp in function_results:
+        range_stats_dict = {}
+        range_stats_dict['min_temp'] = min_temp
+        range_stats_dict['max_temp']= max_temp
+        range_stats_dict['avg_temp'] = avg_temp
+        range_stats.append(range_stats_dict)
 
-	if rain_stats_dict['min_temp']: 
-		return jsonify(rain_stats)
-	else:
-		return jsonify({"error": f"Date(s) not found, invalid, or not formatted as YYYY-MM-DD."}), 404
+    if range_stats_dict['min_temp']: 
+        return jsonify(range_stats)
+    else:
+        return jsonify({"error": f"Date(s) not found, invalid, or not formatted as YYYY-MM-DD."}), 404
 
 
 if __name__ == '__main__':
